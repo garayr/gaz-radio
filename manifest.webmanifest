@@ -1,0 +1,17 @@
+{
+  "name": "Gaz's Radio Stations",
+  "short_name": "Gaz's Radio",
+  "description": "Free rock, blues, jazz, soul, funk and indie radio from around the world.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#001010",
+  "theme_color": "#001010",
+  "icons": [
+    { "src": "images/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "images/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "images/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

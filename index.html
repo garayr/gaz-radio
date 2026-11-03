@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gaz's Radio Stations</title>
+  <meta name="description" content="Free rock, blues, jazz, soul, funk and indie radio stations from around the world.">
+  <meta name="theme-color" content="#001010">
+  <link rel="icon" href="images/icon-192.png">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <!-- Home Screen app on iPad / iPhone -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gaz's Radio">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <header class="hero">
+    <img src="images/header.webp" width="720" height="720" alt="Gaz's Radio Stations">
+    <p class="tagline">Free radio from around the world</p>
+  </header>
+
+  <main>
+    <nav class="genres" id="genres" aria-label="Genres"></nav>
+
+    <div class="controls">
+      <label class="search">
+        <span class="visually-hidden">Search stations</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="Search stations" autocomplete="off">
+      </label>
+      <label class="select">
+        <span class="visually-hidden">Country</span>
+        <select id="country"><option value="">All countries</option></select>
+      </label>
+      <label class="select">
+        <span class="visually-hidden">Sort by</span>
+        <select id="sort">
+          <option value="popular">Most played</option>
+          <option value="votes">Most liked</option>
+          <option value="name">A to Z</option>
+        </select>
+      </label>
+    </div>
+
+    <p class="status" id="status" role="status"></p>
+    <ul class="stations" id="stations"></ul>
+    <div class="more" id="more"></div>
+  </main>
+
+  <footer class="credit">
+    Station directory by <a href="https://www.radio-browser.info" target="_blank" rel="noopener">Radio Browser</a>, a free community database.
+  </footer>
+
+  <section class="player" id="player" aria-label="Player" hidden>
+    <div class="logo" id="playerLogo"></div>
+    <div class="now">
+      <div class="now-name" id="playerName"></div>
+      <div class="now-state" id="playerState"></div>
+    </div>
+    <button class="fav-btn player-fav" id="playerFav" type="button" aria-pressed="false" aria-label="Add to favourites">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></svg>
+    </button>
+    <label class="volume">
+      <span class="visually-hidden">Volume</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8">
+    </label>
+    <button class="play" id="playBtn" type="button" aria-label="Stop">
+      <svg class="icon-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
