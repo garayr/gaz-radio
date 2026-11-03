@@ -58,6 +58,7 @@
 
   <footer class="credit">
     Station directory by <a href="https://www.radio-browser.info" target="_blank" rel="noopener">Radio Browser</a>, a free community database.
+    <br><button type="button" class="link-btn" id="syncOpen">Timers, alarm &amp; sync</button>
   </footer>
 
   <section class="player" id="player" aria-label="Player" hidden>
@@ -66,6 +67,10 @@
       <div class="now-name" id="playerName"></div>
       <div class="now-state" id="playerState"></div>
     </div>
+    <button class="timer-btn" id="timerBtn" type="button" aria-label="Sleep timer and wake-up alarm" title="Sleep timer and alarm">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M5 3 2 6M19 3l3 3"/></svg>
+      <span class="timer-badge" id="timerBadge" hidden></span>
+    </button>
     <button class="fav-btn player-fav" id="playerFav" type="button" aria-pressed="false" aria-label="Add to favourites">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></svg>
     </button>
@@ -79,6 +84,70 @@
       <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
     </button>
   </section>
+
+  <dialog class="sheet" id="timerSheet" aria-labelledby="sleepTitle">
+    <button class="sheet-close" id="timerClose" type="button" aria-label="Close">×</button>
+
+    <h2 id="sleepTitle">Sleep timer</h2>
+    <div class="chips">
+      <button type="button" class="chip" data-sleep="15">15 min</button>
+      <button type="button" class="chip" data-sleep="30">30 min</button>
+      <button type="button" class="chip" data-sleep="45">45 min</button>
+      <button type="button" class="chip" data-sleep="60">1 hour</button>
+      <button type="button" class="chip" data-sleep="90">1½ hours</button>
+      <button type="button" class="chip off" data-sleep="0">Off</button>
+    </div>
+    <p class="sheet-status" id="sleepStatus">Off</p>
+
+    <h2>Wake-up alarm</h2>
+    <div id="alarmSet">
+      <div class="alarm-row">
+        <label class="field">
+          <span>Time</span>
+          <input type="time" id="alarmTime" value="07:00">
+        </label>
+        <label class="field grow">
+          <span>Station</span>
+          <select id="alarmStation"></select>
+        </label>
+      </div>
+      <label class="check"><input type="checkbox" id="alarmRepeat"> Every day</label>
+      <button type="button" class="btn primary" id="alarmBtn">Set alarm</button>
+      <p class="sheet-hint" id="alarmHint"></p>
+    </div>
+    <div id="alarmOn" hidden>
+      <p class="sheet-status on" id="alarmSummary"></p>
+      <button type="button" class="btn" id="alarmOff">Turn alarm off</button>
+    </div>
+    <p class="sheet-note">Leave this app open on screen (and plugged in) for the alarm to go off. The screen stays on while an alarm is set.</p>
+
+    <section id="syncBox" hidden>
+      <h2>Sync favourites</h2>
+      <div id="syncOff">
+        <p class="sheet-text">Share one favourites list between your devices.</p>
+        <button type="button" class="btn primary" id="syncCreate">Create a sync code</button>
+        <p class="sheet-text or">or enter the code from another device</p>
+        <div class="alarm-row">
+          <input type="text" id="syncInput" class="code-input" placeholder="ABCD-EFGH-JKLM" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <button type="button" class="btn" id="syncJoin">Link</button>
+        </div>
+      </div>
+      <div id="syncOnBox" hidden>
+        <p class="sheet-text">Sync code for this device:</p>
+        <div class="code-show"><span id="syncCodeShow"></span><button type="button" class="btn" id="syncCopy">Copy</button></div>
+        <p class="sheet-status" id="syncStatus"></p>
+        <button type="button" class="btn subtle" id="syncStop">Stop syncing on this device</button>
+      </div>
+      <p class="sheet-hint ok" id="syncMsg"></p>
+    </section>
+  </dialog>
+
+  <div class="wake" id="wakeScreen" hidden role="button" tabindex="0" aria-label="Start the radio">
+    <div class="wake-time" id="wakeTime"></div>
+    <div class="wake-hello">Good morning</div>
+    <div class="wake-station" id="wakeStation"></div>
+    <div class="wake-tap">Tap to play</div>
+  </div>
 
   <script src="app.js"></script>
 </body>

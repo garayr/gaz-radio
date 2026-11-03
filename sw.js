@@ -3,7 +3,7 @@
  * show up on the next launch; the saved copy is only used when offline.
  * Station lists and audio streams come from other sites and are never touched here.
  */
-const CACHE = "gazradio-v1";
+const CACHE = "gazradio-v3";
 const SHELL = [
   "./",
   "index.html",

@@ -19,6 +19,9 @@
   const FAVOURITES = "Favourites";
   const PER_TAG = 80;      // stations fetched per tag
   const PAGE_SIZE = 40;    // stations shown before "Show more"
+  // Gaz's Cloudflare helper: song titles for more stations and favourites sync.
+  // Leave empty to run without it.
+  const HELPER_URL = "https://gaz-radio.garethayres.workers.dev";
   const FALLBACK_SERVERS = [
     "https://de1.api.radio-browser.info",
     "https://de2.api.radio-browser.info",
@@ -132,6 +135,7 @@
     favourites = isFav(s) ? favourites.filter((f) => f.stationuuid !== s.stationuuid) : [...favourites, slim(s)];
     store.set("favourites", favourites);
     syncFavButtons();
+    sync.changed();
   }
 
   // Keep every star (list rows and the player bar) showing the same thing.
@@ -237,6 +241,10 @@
       const title = src.artist && src.title && !String(src.title).includes(src.artist) ? `${src.artist} – ${src.title}` : src.title || src.yp_currently_playing;
       return tidySong(String(title || ""), station);
     },
+    async helper(url, station) {
+      const data = await fetchJson(`${HELPER_URL}/meta?url=${encodeURIComponent(url.href)}`);
+      return tidySong(data && data.title, station);
+    },
     async shoutcast(url, station) {
       const data = await fetchJson(url.origin + "/stats?sid=1&json=1");
       return tidySong(data && data.songtitle, station);
@@ -277,18 +285,22 @@
     async lookup(station) {
       let url;
       try { url = new URL(station.url_resolved); } catch { return null; }
-      const known = songSource[url.origin];
+      const key = station.url_resolved;
+      const known = songSource[key];
       if (known === "none") return null;
-      const order = known ? [known] : ["icecast", "shoutcast"];
+      const all = HELPER_URL ? ["helper", "icecast", "shoutcast"] : ["icecast", "shoutcast"];
+      const order = known ? [known, ...all.filter((k) => k !== known)] : all;
+      let reachable = false;
       for (const kind of order) {
         try {
           const song = await songReaders[kind](url, station);
-          songSource[url.origin] = kind;
-          return song;
+          reachable = true;
+          if (song) { songSource[key] = kind; return song; }
+          if (known === kind) return ""; // same source as before, just between songs
         } catch { /* not readable this way */ }
       }
-      if (!known) songSource[url.origin] = "none";
-      return known ? "" : null; // a server that worked before may just be slow
+      if (!reachable && !known) { songSource[key] = "none"; return null; }
+      return "";
     },
   };
 
@@ -511,6 +523,346 @@
     toggleFav(player.current);
     if (state.genre === FAVOURITES && !state.worldSearch) { state.list = favourites; renderCountries(); render(); }
   });
+
+  // ---- Sleep timer and wake-up alarm ---------------------------------------
+  // Sleep: stops the radio after a set time (fading out where the browser allows).
+  // Wake: starts a chosen station at a set time. Web pages can only do this while
+  // they are open, so the screen is kept awake while an alarm is set. If the
+  // browser still refuses to start sound by itself, a "tap to play" screen appears.
+
+  const FADE_MS = 60000;
+  const userVolume = () => Number($("volume").value) || 0.8;
+  const pad = (n) => String(n).padStart(2, "0");
+  const clock = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  const sleep = {
+    endsAt: 0,
+    set(minutes) {
+      this.endsAt = minutes ? Date.now() + minutes * 60000 : 0;
+      if (!minutes) audio.volume = userVolume();
+      timers.refresh();
+    },
+    tick(now) {
+      if (!this.endsAt) return;
+      const left = this.endsAt - now;
+      if (left <= 0) {
+        this.endsAt = 0;
+        if (player.playing) {
+          player.stop();
+          document.querySelectorAll(".station.playing").forEach((n) => n.classList.remove("playing"));
+          ui.playerState("Sleep timer stopped the radio. Good night.");
+        }
+        audio.volume = userVolume();
+      } else if (left < FADE_MS && player.playing) {
+        audio.volume = userVolume() * (left / FADE_MS);
+      }
+    },
+  };
+
+  const alarm = {
+    data: store.get("alarm", null), // { time: "07:00", station, repeat, next }
+    wakeLock: null,
+    nextFor(time, from = new Date()) {
+      const [h, m] = time.split(":").map(Number);
+      const d = new Date(from);
+      d.setHours(h, m, 0, 0);
+      if (d.getTime() <= from.getTime()) d.setDate(d.getDate() + 1);
+      return d.getTime();
+    },
+    set(time, station, repeat) {
+      this.data = { time, station: slim(station), repeat: !!repeat, next: this.nextFor(time) };
+      store.set("alarm", this.data);
+      unlockAudio();
+      this.keepAwake();
+      timers.refresh();
+    },
+    clear() {
+      this.data = null;
+      store.set("alarm", null);
+      this.releaseAwake();
+      timers.refresh();
+    },
+    async keepAwake() {
+      if (!this.data || this.wakeLock || !("wakeLock" in navigator) || document.hidden) return;
+      try {
+        this.wakeLock = await navigator.wakeLock.request("screen");
+        this.wakeLock.addEventListener("release", () => { this.wakeLock = null; });
+      } catch { /* not allowed right now */ }
+    },
+    releaseAwake() { if (this.wakeLock) { this.wakeLock.release().catch(() => {}); this.wakeLock = null; } },
+    tick(now) {
+      if (!this.data || now < this.data.next) return;
+      const late = now - this.data.next;
+      const station = this.data.station;
+      if (this.data.repeat) {
+        this.data.next = this.nextFor(this.data.time, new Date(now + 60000));
+        store.set("alarm", this.data);
+      } else {
+        this.data = null;
+        store.set("alarm", null);
+        this.releaseAwake();
+      }
+      timers.refresh();
+      if (late < 30 * 60000) wakeUp(station); // device was asleep for ages: don't go off at lunchtime
+    },
+  };
+
+  function wakeUp(station) {
+    sleep.endsAt = 0;
+    showPlayer(station);
+    player.play(station);
+    // Gentle fade-in where the browser allows volume changes (not on iPad/iPhone).
+    const target = userVolume();
+    const start = Date.now();
+    audio.volume = 0;
+    const fade = setInterval(() => {
+      const t = Math.min(1, (Date.now() - start) / FADE_MS);
+      audio.volume = target * t;
+      if (t >= 1 || !player.playing && Date.now() - start > 15000) { clearInterval(fade); audio.volume = target; }
+    }, 500);
+    // If the browser blocked the sound, ask for a tap instead.
+    setTimeout(() => { if (!player.playing || audio.paused) showWakeScreen(station); }, 4000);
+  }
+
+  function showWakeScreen(station) {
+    const scr = $("wakeScreen");
+    if (!scr) return;
+    $("wakeStation").textContent = station.name;
+    scr.hidden = false;
+    $("wakeTime").textContent = clock(new Date());
+  }
+  $("wakeScreen")?.addEventListener("click", () => {
+    $("wakeScreen").hidden = true;
+    const s = player.current;
+    if (s && !player.playing) { audio.volume = userVolume(); player.play(s); }
+  });
+
+  // iPad/iPhone only let a page start sound later if it has played something
+  // after a tap, so play a moment of silence when the alarm is set.
+  function unlockAudio() {
+    if (player.playing) return;
+    try {
+      const rate = 8000, n = 800, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+      const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+      w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+      v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+      const url = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+      audio.src = url;
+      audio.play().then(() => { audio.pause(); audio.removeAttribute("src"); audio.load(); ui.playButton(false); URL.revokeObjectURL(url); })
+        .catch(() => URL.revokeObjectURL(url));
+    } catch { /* ignore */ }
+  }
+
+  const timers = {
+    refresh() {
+      const now = Date.now();
+      // Badge on the player-bar button
+      const badge = $("timerBadge");
+      const btn = $("timerBtn");
+      let label = "";
+      if (sleep.endsAt) label = Math.max(1, Math.ceil((sleep.endsAt - now) / 60000)) + "m";
+      else if (alarm.data) label = alarm.data.time;
+      if (badge) { badge.textContent = label; badge.hidden = !label; }
+      if (btn) btn.classList.toggle("active", !!label);
+
+      // Sleep section
+      document.querySelectorAll("[data-sleep]").forEach((b) => b.setAttribute("aria-pressed", "false"));
+      $("sleepStatus").textContent = sleep.endsAt
+        ? `Radio will stop at ${clock(new Date(sleep.endsAt))} (in ${Math.max(1, Math.ceil((sleep.endsAt - now) / 60000))} min).`
+        : "Off";
+
+      // Alarm section
+      const on = !!alarm.data;
+      $("alarmSet").hidden = on;
+      $("alarmOn").hidden = !on;
+      if (on) {
+        const d = new Date(alarm.data.next);
+        const day = d.toDateString() === new Date().toDateString() ? "today" : "tomorrow";
+        $("alarmSummary").textContent = `${alarm.data.station.name} at ${alarm.data.time} ${day}${alarm.data.repeat ? ", every day" : ""}.`;
+      }
+      $("playerFav") && document.body.classList.toggle("alarm-armed", on);
+    },
+    fillStations() {
+      const sel = $("alarmStation");
+      const options = [];
+      const seen = new Set();
+      const add = (s) => { if (s && !seen.has(s.stationuuid)) { seen.add(s.stationuuid); options.push(s); } };
+      add(player.current);
+      favourites.forEach(add);
+      sel.replaceChildren(...options.map((s) => new Option(s.name, s.stationuuid)));
+      sel.disabled = !options.length;
+      $("alarmBtn").disabled = !options.length;
+      $("alarmHint").textContent = options.length ? "" : "Play a station or add favourites first.";
+      sel._stations = options;
+    },
+  };
+
+  const sheet = $("timerSheet");
+  $("timerBtn")?.addEventListener("click", () => {
+    timers.fillStations();
+    if (!$("alarmTime").value) $("alarmTime").value = store.get("alarmTimeLast", "07:00");
+    timers.refresh();
+    sheet.showModal();
+  });
+  $("timerClose").addEventListener("click", () => sheet.close());
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
+  document.querySelectorAll("[data-sleep]").forEach((b) =>
+    b.addEventListener("click", () => { sleep.set(Number(b.dataset.sleep)); if (Number(b.dataset.sleep)) b.setAttribute("aria-pressed", "true"); })
+  );
+  $("alarmBtn").addEventListener("click", () => {
+    const time = $("alarmTime").value;
+    const sel = $("alarmStation");
+    const station = (sel._stations || []).find((s) => s.stationuuid === sel.value);
+    if (!time || !station) return;
+    store.set("alarmTimeLast", time);
+    alarm.set(time, station, $("alarmRepeat").checked);
+  });
+  $("alarmOff").addEventListener("click", () => alarm.clear());
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { alarm.keepAwake(); tickTimers(); } });
+  function tickTimers() { const now = Date.now(); sleep.tick(now); alarm.tick(now); }
+  setInterval(() => { tickTimers(); if (sleep.endsAt || alarm.data) timers.refresh(); }, 1000);
+  // While audio plays, phones keep sending these events even with the screen off,
+  // so the sleep timer still fires if the page's own clock has been slowed down.
+  let lastTU = 0;
+  audio.addEventListener("timeupdate", () => { const now = Date.now(); if (now - lastTU > 5000) { lastTU = now; tickTimers(); } });
+  if (alarm.data) { alarm.data.next = Math.max(alarm.data.next, 0); alarm.keepAwake(); }
+  timers.refresh();
+
+  // ---- Favourites sync (via the Cloudflare helper) -------------------------
+  // Each device that enters the same sync code shares one favourites list.
+
+  const sync = {
+    code: store.get("syncCode", ""),
+    updated: store.get("syncUpdated", 0), // server time of the list we last saw
+    dirty: store.get("syncDirty", false), // local change not yet saved online
+    timer: null,
+    busy: false,
+    get on() { return !!(HELPER_URL && this.code); },
+    newCode() {
+      const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const bytes = crypto.getRandomValues(new Uint8Array(12));
+      const chars = [...bytes].map((b) => abc[b % abc.length]).join("");
+      return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8, 12)}`;
+    },
+    async request(method, body) {
+      const res = await fetch(`${HELPER_URL}/favs/${encodeURIComponent(this.code)}`, {
+        method, cache: "no-store",
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    },
+    remember(updated) {
+      this.updated = updated || 0;
+      store.set("syncUpdated", this.updated);
+      store.set("syncLast", Date.now());
+    },
+    setDirty(v) { this.dirty = v; store.set("syncDirty", v); },
+    apply(list) {
+      favourites = list;
+      store.set("favourites", favourites);
+      syncFavButtons();
+      if (state.genre === FAVOURITES && !state.worldSearch) { state.list = favourites; renderCountries(); render(); }
+    },
+    merge(a, b) {
+      const byId = new Map();
+      [...a, ...b].forEach((s) => { if (s && s.stationuuid && !byId.has(s.stationuuid)) byId.set(s.stationuuid, s); });
+      return [...byId.values()];
+    },
+    async link(code) {
+      this.code = code;
+      store.set("syncCode", code);
+      const remote = await this.request("GET");
+      const merged = this.merge(favourites, remote.favourites || []);
+      const saved = await this.request("PUT", { favourites: merged });
+      this.apply(saved.favourites);
+      this.remember(saved.updated);
+      this.setDirty(false);
+    },
+    unlink() {
+      this.code = ""; store.set("syncCode", "");
+      this.remember(0); this.setDirty(false);
+    },
+    changed() { // called after a star is added or removed here
+      if (!this.on) return;
+      this.setDirty(true);
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => this.push(), 1500);
+    },
+    async push() {
+      if (!this.on) return;
+      try {
+        const saved = await this.request("PUT", { favourites });
+        this.remember(saved.updated);
+        this.setDirty(false);
+      } catch { /* offline: try again on the next check */ }
+      settings.refresh();
+    },
+    async pull() {
+      if (!this.on || this.busy) return;
+      this.busy = true;
+      try {
+        const remote = await this.request("GET");
+        if (this.dirty) {
+          // We changed something while offline: keep both sides, then save.
+          const saved = await this.request("PUT", { favourites: this.merge(favourites, remote.favourites || []) });
+          this.apply(saved.favourites); this.remember(saved.updated); this.setDirty(false);
+        } else if ((remote.updated || 0) > this.updated) {
+          this.apply(remote.favourites || []); this.remember(remote.updated);
+        } else {
+          store.set("syncLast", Date.now());
+        }
+      } catch { /* offline */ }
+      finally { this.busy = false; settings.refresh(); }
+    },
+  };
+
+  const settings = {
+    refresh() {
+      const box = $("syncBox");
+      if (!box) return;
+      box.hidden = !HELPER_URL;
+      $("syncOff").hidden = sync.on;
+      $("syncOnBox").hidden = !sync.on;
+      if (sync.on) {
+        $("syncCodeShow").textContent = sync.code;
+        const last = store.get("syncLast", 0);
+        $("syncStatus").textContent = sync.dirty ? "Waiting to sync…" : last ? `Synced at ${clock(new Date(last))}` : "";
+      }
+    },
+  };
+
+  $("syncCreate")?.addEventListener("click", async () => {
+    $("syncMsg").textContent = "Setting up…";
+    try { await sync.link(sync.newCode()); $("syncMsg").textContent = "Done. Enter this code on your other devices."; }
+    catch { sync.unlink(); $("syncMsg").textContent = "Couldn't reach the sync service. Try again."; }
+    settings.refresh();
+  });
+  $("syncJoin")?.addEventListener("click", async () => {
+    const code = $("syncInput").value.trim().toUpperCase().replace(/\s+/g, "");
+    if (!/^[A-Z0-9-]{12,64}$/.test(code)) { $("syncMsg").textContent = "That code doesn't look right. It's like ABCD-EFGH-JKLM."; return; }
+    $("syncMsg").textContent = "Linking…";
+    try { await sync.link(code); $("syncMsg").textContent = "Linked. Favourites from both devices are now combined."; $("syncInput").value = ""; }
+    catch { sync.unlink(); $("syncMsg").textContent = "Couldn't reach the sync service. Try again."; }
+    settings.refresh();
+  });
+  $("syncCopy")?.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(sync.code); $("syncMsg").textContent = "Code copied."; }
+    catch { $("syncMsg").textContent = "Copy didn't work. Write the code down instead."; }
+  });
+  $("syncStop")?.addEventListener("click", () => {
+    sync.unlink(); $("syncMsg").textContent = "This device has stopped syncing. Its favourites stay here.";
+    settings.refresh();
+  });
+  $("syncOpen")?.addEventListener("click", () => { $("timerBtn")?.click(); setTimeout(() => $("syncBox")?.scrollIntoView({ block: "start" }), 50); });
+
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) sync.pull(); });
+  setInterval(() => { if (!document.hidden) sync.pull(); }, 120000);
+  settings.refresh();
+  sync.pull();
 
   // ---- Wire up controls ----------------------------------------------------
 

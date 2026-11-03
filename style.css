@@ -227,6 +227,99 @@ input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible
 .play.stopped .icon-play { display: block; }
 .play.stopped .icon-stop { display: none; }
 
+/* Sleep timer / alarm */
+.timer-btn {
+  position: relative; flex: none;
+  width: 44px; height: 44px; border: 0; background: none; cursor: pointer;
+  display: grid; place-items: center; border-radius: 10px;
+}
+.timer-btn svg { width: 24px; height: 24px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.timer-btn:hover svg, .timer-btn.active svg { stroke: var(--blue); }
+.timer-badge {
+  position: absolute; top: -2px; right: -6px;
+  font: 700 0.72rem/1 "Barlow Condensed", sans-serif; letter-spacing: .02em;
+  background: var(--blue); color: #fff; border-radius: 999px; padding: 3px 5px;
+}
+
+.sheet {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: #04191e; color: var(--text);
+  border: 1px solid var(--blue); border-radius: 18px;
+  padding: 20px 20px 18px;
+  box-shadow: 0 0 40px rgba(91, 123, 255, .25);
+}
+.sheet::backdrop { background: rgba(0, 8, 10, .7); backdrop-filter: blur(3px); }
+.sheet h2 {
+  margin: 4px 0 10px;
+  font: 600 1.35rem/1.1 "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase;
+}
+.sheet h2 + .chips { margin-top: 0; }
+.sheet h2:not(:first-of-type) { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sheet-close {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px;
+  border: 0; background: none; color: var(--muted); font-size: 1.8rem; line-height: 1; cursor: pointer; border-radius: 10px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: 600 1rem "Barlow", sans-serif; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 10px 16px; min-height: 44px; cursor: pointer;
+}
+.chip:hover { border-color: var(--blue); }
+.chip[aria-pressed="true"] { border-color: var(--pink); box-shadow: 0 0 12px var(--pink-glow); }
+.chip.off { color: var(--muted); }
+.sheet-status { margin: 10px 0 0; color: var(--muted); }
+.sheet-status.on { color: var(--pink); font-weight: 600; margin: 0 0 12px; }
+.sheet-hint { color: #ffb4a8; margin: 8px 0 0; min-height: 0; }
+.sheet-hint:empty { display: none; }
+.sheet-note { color: var(--muted); font-size: .88rem; margin: 16px 0 0; }
+.alarm-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.field { display: grid; gap: 4px; font-size: .88rem; color: var(--muted); }
+.field.grow { flex: 1; min-width: 180px; }
+.field input[type="time"] {
+  font: 600 1.4rem "Barlow", sans-serif; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 10px; min-height: 48px; color-scheme: dark;
+}
+.field select { min-height: 48px; }
+.check { display: flex; align-items: center; gap: 8px; margin: 12px 0; cursor: pointer; }
+.check input { width: 20px; height: 20px; accent-color: var(--pink); }
+.btn.primary { background: var(--pink); border-color: var(--pink); color: #1a0016; }
+.btn.primary:hover { background: #ff6fe0; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+.sheet section h2 { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.sheet-text { margin: 0 0 10px; color: var(--muted); }
+.sheet-text.or { margin: 14px 0 8px; font-size: .9rem; }
+.sheet-hint.ok { color: #b9c6ff; }
+.code-input {
+  flex: 1; min-width: 160px; min-height: 44px;
+  font: 600 1.15rem "Barlow", sans-serif; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
+}
+.code-show { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.code-show span { font: 700 1.5rem "Barlow Condensed", sans-serif; letter-spacing: .14em; color: #fff; }
+.btn.subtle { border-color: var(--line); color: var(--muted); margin-top: 6px; }
+.link-btn { margin-top: 10px; background: none; border: 0; color: #b9c6ff; text-decoration: underline; font: inherit; cursor: pointer; padding: 8px; }
+
+.wake {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: radial-gradient(circle at 50% 40%, #2a0b33, var(--bg) 70%);
+  text-align: center; cursor: pointer; padding: 24px;
+}
+.wake[hidden] { display: none; }
+.wake-time { font: 600 clamp(4rem, 18vw, 9rem)/1 "Barlow Condensed", sans-serif; color: #fff; text-shadow: 0 0 30px var(--pink-glow); }
+.wake-hello { font: 600 1.6rem "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--pink); }
+.wake-station { color: var(--muted); font-size: 1.1rem; }
+.wake-tap {
+  margin-top: 24px; padding: 14px 28px; border-radius: 999px;
+  background: var(--pink); color: #1a0016; font: 700 1.2rem "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase;
+  box-shadow: 0 0 24px var(--pink-glow);
+}
+
 /* iOS ignores volume set by web pages – use the iPad's own volume buttons. */
 .no-volume .volume { display: none; }
 
