@@ -3,15 +3,15 @@
  * show up on the next launch; the saved copy is only used when offline.
  * Station lists and audio streams come from other sites and are never touched here.
  */
-const CACHE = "gazradio-v3";
+const CACHE = "gazradio-v4";
 const SHELL = [
   "./",
   "index.html",
   "style.css",
   "app.js",
   "manifest.webmanifest",
-  "images/header.webp",
-  "images/backdrop.webp",
+  "images/header.jpg",
+  "images/backdrop.jpg",
   "images/icon-192.png",
   "images/apple-touch-icon.png",
 ];
