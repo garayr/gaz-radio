@@ -15,6 +15,9 @@
     Soul:  ["soul", "northern soul", "neo soul", "classic soul", "motown"],
     Funk:  ["funk", "funky", "jazz-funk", "p-funk", "disco funk"],
     Indie: ["indie", "indie rock", "indie pop", "indie folk", "alternative"],
+    "Hip-Hop": ["hip hop", "hiphop", "hip-hop", "rap", "old school hip hop", "boom bap"],
+    Electro: ["electronic", "electro", "house", "techno", "edm", "drum and bass", "trance"],
+    News:  ["news", "news talk", "talk", "public radio", "bbc"],
   };
   const FAVOURITES = "Favourites";
   const PER_TAG = 80;      // stations fetched per tag
